@@ -1,6 +1,6 @@
 {
-  "name": "scraper-epam-ro",
-  "version": "1.5.0",
+  "name": "scraper-ntt-data-ro",
+  "version": "1.0.0",
   "type": "module",
   "main": "scraper/index.js",
   "scripts": {
@@ -12,8 +12,9 @@
     "test:consistency": "node --no-deprecation --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=consistency"
   },
   "dependencies": {
-    "node-fetch": "^3.3.2",
-    "dotenv": "^16.4.0"
+    "cheerio": "^1.2.0",
+    "dotenv": "^16.4.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "jest": "^29.7.0",
@@ -21,9 +22,14 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "verbose": true,
-    "reporters": ["default", "jest-html-reporter"],
+    "reporters": [
+      "default",
+      "jest-html-reporter"
+    ],
     "testTimeout": 30000
   }
 }

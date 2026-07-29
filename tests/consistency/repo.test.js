@@ -2,6 +2,7 @@ import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import companyConfig from "../../scraper/config/company.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = process.env.GITHUB_REPOSITORY;
@@ -36,7 +37,7 @@ describe("Repository Configuration", () => {
       expect(res.ok).toBe(true);
       const data = await res.json();
       expect(data.default_branch).toBe("main");
-      console.log(`✅ Default branch: ${data.default_branch}`);
+      console.log(`Default branch: ${data.default_branch}`);
     });
   });
 
@@ -48,10 +49,8 @@ describe("Repository Configuration", () => {
       const data = await res.json();
       expect(data.homepage).toBeTruthy();
       expect(data.homepage).toMatch(/^https?:\/\//);
-      console.log(`✅ GitHub Pages URL: ${data.homepage}`);
+      console.log(`GitHub Pages URL: ${data.homepage}`);
     });
-
-    // deploy.yml removed — legacy GitHub Pages auto-deploys from docs/
   });
 
   describe("hosted HTML page", () => {
@@ -69,15 +68,15 @@ describe("Repository Configuration", () => {
         headers: { "User-Agent": "jest-test" },
       });
       if (!res.ok) {
-        console.log(`⚠️ GitHub Pages returned ${res.status} — may not be deployed yet`);
+        console.log(`GitHub Pages returned ${res.status} — may not be deployed yet`);
         return;
       }
 
       const html = await res.text();
       expect(html).toContain("<!DOCTYPE html>");
       expect(html).toContain("peviitor");
-      expect(html).toContain("EPAM");
-      console.log(`✅ GitHub Pages HTML loaded from ${pagesUrl}`);
+      expect(html.toLowerCase()).toContain(companyConfig.brand.toLowerCase());
+      console.log(`GitHub Pages HTML loaded from ${pagesUrl}`);
     });
   });
 
@@ -89,7 +88,7 @@ describe("Repository Configuration", () => {
       expect(content).toContain("name: Oportunitati SI Cariere");
       expect(content).toContain("schedule");
       expect(content).toContain("workflow_dispatch");
-      console.log(`✅ ${SCRAPER_YML} exists with expected content`);
+      console.log(`${SCRAPER_YML} exists with expected content`);
     });
   });
 });

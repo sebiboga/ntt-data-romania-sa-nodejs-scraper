@@ -2,13 +2,12 @@ import { jest } from '@jest/globals';
 import fetch from 'node-fetch';
 
 const API_BASE = 'https://api.peviitor.ro/v1';
-const EPAM_CIF = '33159615';
 
 let HAS_API = false;
 
 async function checkApiAvailability() {
   try {
-    const res = await fetch(`${API_BASE}/scraper/jobs/?cif=${EPAM_CIF}&rows=1`, {
+    const res = await fetch(`${API_BASE}/scraper/jobs/?cif=13091574&rows=1`, {
       signal: AbortSignal.timeout(5000)
     });
     return res.ok || res.status === 400;
@@ -49,88 +48,70 @@ import companyConfig from '../../scraper/config/company.js';
 const TEST_CIF = companyConfig.id;
 const TEST_BRAND = companyConfig.brand;
 const COMPANY_NAME = companyConfig.company;
-const EPAM_API_URL = 'https://careers.epam.com/api/jobs/v2/search/careers-i18n?from=0&lang=en&size=5&sortBy=relevance%3Brelocation%3Dasc&websiteLocale=en-us&facets=country%3D8150000000000001155';
+const CAREER_BASE = 'https://careers.nttdata.ro';
 
 beforeAll(async () => {
   [HAS_API, HAS_ANAF] = await Promise.all([checkApiAvailability(), checkAnafAvailability()]);
-});
+}, 60000);
 
 describe('E2E: Full Scraping Pipeline', () => {
 
-  describe('EPAM Careers API — Real Data Fetch', () => {
-    let apiData;
+  describe('NTT DATA Careers — Real Data Fetch', () => {
+    let html;
 
     beforeAll(async () => {
-      const res = await fetch(EPAM_API_URL, {
+      const res = await fetch(`${CAREER_BASE}/search/?q=&sortColumn=referencedate&sortDirection=desc`, {
         headers: {
           'User-Agent': 'job_seeker_ro_spider',
-          'Accept': 'application/json'
+          'Accept': 'text/html'
         }
       });
-      apiData = await res.json();
+      html = await res.text();
     }, 15000);
 
-    it('should respond with valid job data from EPAM API', () => {
-      expect(apiData.data).toHaveProperty('jobs');
-      expect(Array.isArray(apiData.data.jobs)).toBe(true);
-      expect(apiData.data.jobs.length).toBeGreaterThan(0);
-      expect(apiData.data).toHaveProperty('total');
-      expect(typeof apiData.data.total).toBe('number');
+    it('should respond with valid HTML from careers site', () => {
+      expect(html).toContain('<!');
+      expect(html.length).toBeGreaterThan(1000);
     }, 10000);
 
-    it('should have Romania jobs with expected fields', () => {
-      const job = apiData.data.jobs[0];
-      expect(job).toHaveProperty('uid');
-      expect(job).toHaveProperty('name');
-      expect(typeof job.name).toBe('string');
-      expect(job).toHaveProperty('city');
-    });
-
-    it('should have Romanian country on at least one job', () => {
-      const allCountries = apiData.data.jobs.flatMap(j =>
-        (j.country || []).map(c => c.name?.toLowerCase())
-      );
-      expect(allCountries.length).toBeGreaterThan(0);
-      expect(allCountries.some(c => c === 'romania')).toBe(true);
+    it('should contain job listings', () => {
+      expect(html).toContain('/nttdataromania/job/');
+      expect(html).toContain('NTT DATA');
     });
   });
 
   describe('Parse + Transform Pipeline', () => {
     let index;
-    let apiData;
+    let html;
 
     beforeAll(async () => {
       index = await import('../../scraper/index.js');
-      const res = await fetch(EPAM_API_URL, {
+      const res = await fetch(`${CAREER_BASE}/search/?q=&sortColumn=referencedate&sortDirection=desc`, {
         headers: {
           'User-Agent': 'job_seeker_ro_spider',
-          'Accept': 'application/json'
+          'Accept': 'text/html'
         }
       });
-      apiData = await res.json();
+      html = await res.text();
     }, 15000);
 
-    it('should parse real EPAM API response into standardized format', () => {
-      const result = index.parseApiJobs(apiData);
+    it('should parse real HTML response into standardized format', () => {
+      const result = index.parseJobsFromHtml(html);
 
       expect(result).toHaveProperty('jobs');
       expect(result).toHaveProperty('total');
       expect(result.jobs.length).toBeGreaterThan(0);
-      expect(result.jobs.length).toBeLessThanOrEqual(5);
 
       const parsed = result.jobs[0];
       expect(parsed).toHaveProperty('url');
-      expect(parsed.url).toMatch(/^https:\/\/careers\.epam\.com\//);
+      expect(parsed.url).toMatch(/^https:\/\/careers\.nttdata\.ro\//);
       expect(parsed).toHaveProperty('title');
-      expect(parsed).toHaveProperty('workmode');
-      expect(['remote', 'on-site', 'hybrid']).toContain(parsed.workmode);
       expect(parsed).toHaveProperty('location');
       expect(Array.isArray(parsed.location)).toBe(true);
-      expect(parsed).toHaveProperty('tags');
     });
 
     it('should map parsed jobs to job model', () => {
-      const parsed = index.parseApiJobs(apiData);
+      const parsed = index.parseJobsFromHtml(html);
       const model = index.mapToJobModel(parsed.jobs[0], TEST_CIF);
 
       expect(model).toHaveProperty('url');
@@ -139,15 +120,15 @@ describe('E2E: Full Scraping Pipeline', () => {
       expect(model).toHaveProperty('cif', TEST_CIF);
       expect(model).toHaveProperty('status', 'scraped');
       expect(model).toHaveProperty('date');
-      expect(model.url).toMatch(/^https:\/\/careers\.epam\.com\//);
+      expect(model.url).toMatch(/^https:\/\/careers\.nttdata\.ro\//);
     });
 
     it('should transform jobs and filter to Romanian locations', () => {
-      const parsed = index.parseApiJobs(apiData);
+      const parsed = index.parseJobsFromHtml(html);
       const jobs = parsed.jobs.map(j => index.mapToJobModel(j, TEST_CIF));
 
       const payload = {
-        source: 'epam.com',
+        source: 'careers.nttdata.ro',
         company: COMPANY_NAME,
         cif: TEST_CIF,
         jobs
@@ -162,12 +143,11 @@ describe('E2E: Full Scraping Pipeline', () => {
         expect(job).toHaveProperty('location');
         expect(Array.isArray(job.location)).toBe(true);
         expect(job.location.length).toBeGreaterThan(0);
-        expect(job.workmode).toMatch(/^(remote|on-site|hybrid)$/);
       }
     });
 
     it('should produce valid job URLs that are accessible', async () => {
-      const parsed = index.parseApiJobs(apiData);
+      const parsed = index.parseJobsFromHtml(html);
 
       for (const job of parsed.jobs.slice(0, 2)) {
         const res = await fetch(job.url, {
@@ -188,15 +168,15 @@ describe('E2E: Full Scraping Pipeline', () => {
       company = await import('../../scraper/company.js');
     });
 
-    itIfAnaf('should find EPAM in ANAF and validate active status', async () => {
+    itIfAnaf('should find NTT DATA in ANAF and validate active status', async () => {
       const results = await anaf.searchCompany(TEST_BRAND);
 
-      const epam = results.find(c =>
+      const match = results.find(c =>
         c.cui.toString() === TEST_CIF &&
         c.statusLabel === 'Funcțiune'
       );
-      expect(epam).toBeDefined();
-      expect(epam.cui.toString()).toBe(TEST_CIF);
+      expect(match).toBeDefined();
+      expect(match.cui.toString()).toBe(TEST_CIF);
 
       const anafData = await anaf.getCompanyFromANAF(TEST_CIF);
       expect(anafData).toBeDefined();
@@ -211,7 +191,7 @@ describe('E2E: Full Scraping Pipeline', () => {
       expect(result.cif).toBe(TEST_CIF);
 
       if (result.existingJobsCount === 0) {
-        console.log('⚠️ No EPAM jobs in API — skipping job count assertion');
+        console.log('No jobs in API yet — skipping job count assertion');
         return;
       }
       expect(result.existingJobsCount).toBeGreaterThan(0);
@@ -251,11 +231,11 @@ describe('E2E: Full Scraping Pipeline', () => {
       api = await import('../../scraper/api.js');
     });
 
-    itIfApi('should have EPAM jobs in API with correct company name', async () => {
+    itIfApi('should have NTT DATA jobs in API with correct company name', async () => {
       const result = await api.querySOLR(TEST_CIF);
 
       if (result.numFound === 0) {
-        console.log('⚠️ No EPAM jobs in API — skipping API data verification');
+        console.log('No jobs in API yet — skipping API data verification');
         return;
       }
 
@@ -265,7 +245,7 @@ describe('E2E: Full Scraping Pipeline', () => {
       }
     }, 15000);
 
-    itIfApi('should have EPAM company core entry with required fields', async () => {
+    itIfApi('should have NTT DATA company core entry with required fields', async () => {
       const companyDoc = await api.getCompanyByCif(TEST_CIF);
 
       expect(companyDoc).toBeDefined();

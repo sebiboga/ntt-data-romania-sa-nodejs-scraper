@@ -40,7 +40,7 @@ Pentru fiecare workflow din `.github/workflows/`:
    curl -s "https://api.peviitor.ro/v1/scraper/jobs/?cif=33159615&rows=10" | jq
    ```
 5. Verifică că `docs/jobs.md` a fost generat și este accesibil:
-   - https://sebiboga.github.io/epam-systems-international-srl-nodejs-scraper/jobs.md
+   - https://sebiboga.github.io/nttdata-systems-international-srl-nodejs-scraper/jobs.md
 6. Verifică pe https://peviitor.ro că job-urile sunt vizibile
 
 ## 4. Final
